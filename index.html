@@ -3,212 +3,556 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Evidence Vault — Cloud Storage</title>
+  <meta name="theme-color" content="#070a10">
+  <title>Evidence Vault — Secure Evidence Storage</title>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
   <style>
-    body { background-color: #0b0f19; color: #f3f4f6; font-family: system-ui, -apple-system, sans-serif; }
-    .glass-card { background: rgba(17, 24, 39, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 80% -10%, rgba(37,99,235,.18), transparent 32rem),
+        radial-gradient(circle at 0% 100%, rgba(14,165,233,.08), transparent 28rem),
+        #070a10;
+      color: #f5f7fb;
+      font-family: Inter, system-ui, sans-serif;
+    }
+    .glass {
+      background: rgba(15, 20, 31, .72);
+      border: 1px solid rgba(255,255,255,.08);
+      box-shadow: 0 20px 60px rgba(0,0,0,.22);
+      backdrop-filter: blur(18px);
+    }
+    .glass-soft {
+      background: rgba(255,255,255,.035);
+      border: 1px solid rgba(255,255,255,.07);
+    }
+    .nav-active {
+      background: rgba(59,130,246,.12);
+      color: #93c5fd;
+      border-color: rgba(59,130,246,.24);
+    }
+    .drop-active {
+      border-color: #60a5fa !important;
+      background: rgba(59,130,246,.08) !important;
+      transform: scale(1.005);
+    }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .scrollbar::-webkit-scrollbar { width: 7px; }
+    .scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .scrollbar::-webkit-scrollbar-thumb { background: #263044; border-radius: 99px; }
+    .toast { animation: toastIn .25s ease-out; }
+    @keyframes toastIn { from { opacity:0; transform:translateY(10px) } to { opacity:1; transform:none } }
+    .spin { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
-<body class="flex h-screen overflow-hidden">
 
-  <!-- Sidebar -->
-  <aside class="w-64 glass-card border-r border-gray-800 flex flex-col justify-between p-4 z-10">
-    <div>
-      <div class="flex items-center gap-3 px-2 py-4 mb-6">
-        <i class="fa-solid fa-shield-halved text-blue-500 text-2xl"></i>
-        <div>
-          <h1 class="font-bold text-lg tracking-wide">Evidence Vault</h1>
-          <p class="text-xs text-gray-500 uppercase tracking-widest">Preserve. Verify.</p>
+<body class="min-h-screen">
+  <div class="flex min-h-screen">
+
+    <!-- SIDEBAR -->
+    <aside class="hidden lg:flex w-72 shrink-0 border-r border-white/5 bg-black/10 p-5 flex-col sticky top-0 h-screen">
+      <div>
+        <div class="flex items-center gap-3 px-2 py-3 mb-8">
+          <div class="w-11 h-11 rounded-2xl bg-blue-600/15 border border-blue-400/20 flex items-center justify-center">
+            <svg class="w-6 h-6 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M12 3l7 3v5c0 4.7-3 8.5-7 10-4-1.5-7-5.3-7-10V6l7-3Z"/>
+              <path d="M9 12l2 2 4-4"/>
+            </svg>
+          </div>
+          <div>
+            <div class="font-extrabold tracking-tight text-lg">Evidence Vault</div>
+            <div class="text-[10px] uppercase tracking-[.22em] text-slate-500">Preserve · Verify · Protect</div>
+          </div>
         </div>
+
+        <nav class="space-y-2">
+          <button data-tab="dashboard" onclick="switchTab('dashboard')" class="nav-btn nav-active w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent text-sm font-semibold">
+            <span>⌂</span> Visão geral
+          </button>
+          <button data-tab="upload" onclick="switchTab('upload')" class="nav-btn w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent text-sm font-semibold text-slate-400 hover:bg-white/5">
+            <span>↑</span> Adicionar evidência
+          </button>
+          <button data-tab="library" onclick="switchTab('library')" class="nav-btn w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent text-sm font-semibold text-slate-400 hover:bg-white/5">
+            <span>▣</span> Biblioteca
+          </button>
+          <button data-tab="settings" onclick="switchTab('settings')" class="nav-btn w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent text-sm font-semibold text-slate-400 hover:bg-white/5">
+            <span>⚙</span> Ligação
+          </button>
+        </nav>
       </div>
 
-      <nav class="space-y-1">
-        <button id="btn-tab-upload" onclick="switchTab('upload')" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition text-blue-400 bg-blue-500/10 border border-blue-500/20">
-          <i class="fa-solid fa-cloud-arrow-up"></i> Carregar para a Nuvem
-        </button>
-        <button id="btn-tab-config" onclick="switchTab('config')" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition text-gray-400 hover:text-gray-200 hover:bg-gray-800/50">
-          <i class="fa-solid fa-gear"></i> Configurar Servidor
-        </button>
+      <div class="mt-auto">
+        <div class="glass-soft rounded-2xl p-4">
+          <div class="flex items-center gap-2 mb-2">
+            <span id="status-dot" class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+            <span id="status-text" class="text-xs font-semibold text-amber-300">A verificar ligação…</span>
+          </div>
+          <div class="text-[11px] text-slate-500 leading-relaxed">
+            Projeto: <span class="text-slate-300">videos_cam</span><br>
+            Storage: <span class="text-slate-300">videos</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MOBILE HEADER -->
+    <header class="lg:hidden fixed top-0 inset-x-0 z-40 bg-[#070a10]/90 backdrop-blur-xl border-b border-white/5 px-4 py-3">
+      <div class="flex items-center justify-between">
+        <div class="font-extrabold">Evidence Vault</div>
+        <button onclick="toggleMobileMenu()" class="glass-soft rounded-xl px-3 py-2">☰</button>
+      </div>
+      <nav id="mobile-menu" class="hidden pt-3 space-y-1">
+        <button onclick="switchTab('dashboard');toggleMobileMenu()" class="w-full text-left p-3 rounded-xl">Visão geral</button>
+        <button onclick="switchTab('upload');toggleMobileMenu()" class="w-full text-left p-3 rounded-xl">Adicionar evidência</button>
+        <button onclick="switchTab('library');toggleMobileMenu()" class="w-full text-left p-3 rounded-xl">Biblioteca</button>
+        <button onclick="switchTab('settings');toggleMobileMenu()" class="w-full text-left p-3 rounded-xl">Ligação</button>
       </nav>
-    </div>
+    </header>
 
-    <!-- Indicator -->
-    <div class="p-3 rounded-xl bg-gray-900/50 border border-gray-800 flex items-center gap-3">
-      <span id="status-dot" class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
-      <span id="status-text" class="text-xs font-medium text-gray-400">Desligado</span>
-    </div>
-  </aside>
+    <!-- MAIN -->
+    <main class="flex-1 min-w-0 p-4 pt-20 lg:p-10 lg:pt-10">
+      <div class="max-w-6xl mx-auto">
 
-  <!-- Main Content -->
-  <main class="flex-1 overflow-y-auto p-8 relative">
-    
-    <!-- Tab 1: Upload -->
-    <section id="tab-upload" class="max-w-3xl mx-auto space-y-6">
-      <header>
-        <h2 class="text-2xl font-bold">Enviar Vídeo / Ficheiro</h2>
-        <p class="text-sm text-gray-400">O ficheiro será guardado de forma segura no Supabase Storage.</p>
-      </header>
+        <!-- DASHBOARD -->
+        <section id="tab-dashboard" class="tab space-y-7">
+          <div class="flex flex-col md:flex-row md:items-end justify-between gap-5">
+            <div>
+              <div class="text-xs uppercase tracking-[.22em] text-blue-400 font-bold mb-2">Secure evidence workspace</div>
+              <h1 class="text-3xl md:text-5xl font-extrabold tracking-tight">A tua evidência, preservada.</h1>
+              <p class="text-slate-400 mt-3 max-w-2xl">Guarda vídeos originais num armazenamento privado, verifica a integridade com SHA-256 e mantém os ficheiros organizados.</p>
+            </div>
+            <button onclick="switchTab('upload')" class="bg-blue-600 hover:bg-blue-500 transition rounded-xl px-5 py-3 font-bold shadow-lg shadow-blue-600/20">
+              + Adicionar vídeo
+            </button>
+          </div>
 
-      <div class="glass-card p-8 rounded-2xl border-dashed border-2 border-gray-700 hover:border-blue-500 transition text-center cursor-pointer relative" id="drop-zone" onclick="document.getElementById('file-input').click()">
-        <input type="file" id="file-input" class="hidden" onchange="handleFileSelect(event)">
-        <i class="fa-solid fa-cloud-arrow-up text-4xl text-blue-400 mb-3"></i>
-        <h3 class="font-semibold text-gray-200">Clique ou arraste o ficheiro para aqui</h3>
-        <p class="text-xs text-gray-500 mt-1">Suporta vídeos, imagens e ficheiros até 50MB no plano gratuito.</p>
+          <div class="grid sm:grid-cols-3 gap-4">
+            <div class="glass rounded-2xl p-5">
+              <div class="text-slate-500 text-xs uppercase tracking-wider">Ficheiros</div>
+              <div id="stat-files" class="text-3xl font-extrabold mt-2">—</div>
+              <div class="text-xs text-slate-500 mt-1">no Storage</div>
+            </div>
+            <div class="glass rounded-2xl p-5">
+              <div class="text-slate-500 text-xs uppercase tracking-wider">Espaço listado</div>
+              <div id="stat-size" class="text-3xl font-extrabold mt-2">—</div>
+              <div class="text-xs text-slate-500 mt-1">com base nos ficheiros disponíveis</div>
+            </div>
+            <div class="glass rounded-2xl p-5">
+              <div class="text-slate-500 text-xs uppercase tracking-wider">Integridade</div>
+              <div class="text-3xl font-extrabold mt-2 text-emerald-400">SHA-256</div>
+              <div class="text-xs text-slate-500 mt-1">calculado antes do upload</div>
+            </div>
+          </div>
+
+          <div class="glass rounded-3xl p-6 md:p-8">
+            <div class="flex items-center justify-between gap-4 mb-5">
+              <div>
+                <h2 class="font-bold text-lg">Últimas evidências</h2>
+                <p class="text-sm text-slate-500">Ficheiros existentes no bucket <b class="text-slate-300">videos</b>.</p>
+              </div>
+              <button onclick="loadLibrary()" class="text-sm text-blue-400 hover:text-blue-300">Atualizar</button>
+            </div>
+            <div id="recent-list" class="space-y-2">
+              <div class="text-sm text-slate-500 py-8 text-center">A carregar…</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- UPLOAD -->
+        <section id="tab-upload" class="tab hidden space-y-7">
+          <div>
+            <div class="text-xs uppercase tracking-[.22em] text-blue-400 font-bold mb-2">Evidence intake</div>
+            <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight">Adicionar evidência</h1>
+            <p class="text-slate-400 mt-2">O ficheiro é enviado sem edição, corte, conversão ou compressão.</p>
+          </div>
+
+          <div id="drop-zone" class="glass rounded-3xl p-8 md:p-14 border-2 border-dashed border-slate-700 hover:border-blue-500/60 transition cursor-pointer text-center">
+            <input id="file-input" type="file" multiple accept="video/*,.mp4,.mov,.mkv,.avi,.webm" class="hidden">
+            <div class="mx-auto w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-400/15 flex items-center justify-center text-3xl text-blue-400">↑</div>
+            <h2 class="text-xl font-bold mt-5">Arrasta os vídeos para aqui</h2>
+            <p class="text-slate-500 text-sm mt-2">ou clica para selecionar vários ficheiros</p>
+            <div class="flex flex-wrap justify-center gap-2 mt-5 text-[11px] text-slate-500">
+              <span class="glass-soft px-3 py-1.5 rounded-full">Original intacto</span>
+              <span class="glass-soft px-3 py-1.5 rounded-full">SHA-256</span>
+              <span class="glass-soft px-3 py-1.5 rounded-full">Supabase Storage</span>
+            </div>
+          </div>
+
+          <div id="upload-queue" class="space-y-3"></div>
+        </section>
+
+        <!-- LIBRARY -->
+        <section id="tab-library" class="tab hidden space-y-7">
+          <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+            <div>
+              <div class="text-xs uppercase tracking-[.22em] text-blue-400 font-bold mb-2">Evidence library</div>
+              <h1 class="text-3xl md:text-4xl font-extrabold">Biblioteca</h1>
+              <p class="text-slate-400 mt-2">Consulta e descarrega os ficheiros preservados.</p>
+            </div>
+            <div class="flex gap-2">
+              <input id="search-input" oninput="renderLibrary()" placeholder="Pesquisar ficheiro…" class="w-full md:w-64 bg-white/[.04] border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-500">
+              <button onclick="loadLibrary()" class="glass-soft rounded-xl px-4">↻</button>
+            </div>
+          </div>
+          <div class="glass rounded-3xl overflow-hidden">
+            <div id="library-list" class="divide-y divide-white/5">
+              <div class="text-sm text-slate-500 p-10 text-center">A carregar biblioteca…</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SETTINGS -->
+        <section id="tab-settings" class="tab hidden space-y-7 max-w-3xl">
+          <div>
+            <div class="text-xs uppercase tracking-[.22em] text-blue-400 font-bold mb-2">Infrastructure</div>
+            <h1 class="text-3xl md:text-4xl font-extrabold">Ligação ao Supabase</h1>
+            <p class="text-slate-400 mt-2">O Evidence Vault está preparado para o projeto <b class="text-slate-200">videos_cam</b>.</p>
+          </div>
+
+          <div class="glass rounded-3xl p-6 md:p-8 space-y-5">
+            <div>
+              <label class="text-xs uppercase tracking-wider text-slate-500 font-bold">Project URL</label>
+              <input id="supabase-url" class="mt-2 w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm mono text-slate-300 outline-none focus:border-blue-500">
+            </div>
+            <div>
+              <label class="text-xs uppercase tracking-wider text-slate-500 font-bold">Publishable / Anon key</label>
+              <input id="supabase-key" type="password" class="mt-2 w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm mono text-slate-300 outline-none focus:border-blue-500">
+            </div>
+            <div>
+              <label class="text-xs uppercase tracking-wider text-slate-500 font-bold">Storage bucket</label>
+              <input id="bucket-name" value="videos" class="mt-2 w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-500">
+            </div>
+            <button onclick="saveConfig()" class="w-full bg-blue-600 hover:bg-blue-500 transition rounded-xl py-3 font-bold">Guardar e testar ligação</button>
+            <div id="connection-result" class="text-sm text-slate-500"></div>
+          </div>
+
+          <div class="glass-soft rounded-2xl p-5">
+            <h3 class="font-bold mb-2">Privacidade</h3>
+            <p class="text-sm text-slate-500 leading-relaxed">
+              O frontend utiliza apenas a chave pública. Para uma aplicação de evidências, mantém o bucket privado e usa políticas RLS/Storage adequadas no Supabase. Nunca coloques uma <span class="text-slate-300">service_role key</span> neste ficheiro.
+            </p>
+          </div>
+        </section>
       </div>
+    </main>
+  </div>
 
-      <!-- Progress Section -->
-      <div id="progress-card" class="glass-card p-5 rounded-xl space-y-3 hidden">
-        <div class="flex justify-between items-center text-sm">
-          <span id="file-name" class="font-medium text-gray-300 truncate max-w-xs">ficheiro.mp4</span>
-          <span id="upload-status" class="text-xs text-blue-400 font-semibold uppercase">A enviar...</span>
-        </div>
-        <div class="w-full bg-gray-800 h-2 rounded-full overflow-hidden">
-          <div id="progress-bar" class="bg-blue-500 h-full w-0 transition-all duration-300"></div>
-        </div>
-        <div id="hash-info" class="text-[10px] font-mono text-gray-500 truncate">
-          SHA-256: <span id="file-hash">a calcular...</span>
-        </div>
-      </div>
-    </section>
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-2 max-w-sm"></div>
 
-    <!-- Tab 2: Config -->
-    <section id="tab-config" class="max-w-2xl mx-auto space-y-6 hidden">
-      <header>
-        <h2 class="text-2xl font-bold">Ligação ao Supabase</h2>
-        <p class="text-sm text-gray-400">Insira os seus dados de acesso do Supabase para ligar o servidor.</p>
-      </header>
+<script>
+  const DEFAULT_URL = "https://nrlqiesweseldvprhcnx.supabase.co";
+  const DEFAULT_KEY = "sb_publishable_kNaQjSjtKa57f5abcUe3iQ_Q-Hrns2O";
+  const DEFAULT_BUCKET = "videos";
 
-      <div class="glass-card p-6 rounded-2xl space-y-4 border border-gray-800">
-        <div>
-          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Project URL do Supabase</label>
-          <input type="text" id="supabase-url" placeholder="https://xxxxxxxxxxxx.supabase.co" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 transition">
-        </div>
-        <div>
-          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Anon / Public API Key</label>
-          <input type="password" id="supabase-key" placeholder="eyJhbGciOiJIUzI1NiIsIn..." class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 transition">
-        </div>
-        <button onclick="saveConfig()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-3 rounded-xl transition shadow-lg shadow-blue-500/20">
-          Guardar e Ligar Servidor
-        </button>
-      </div>
-    </section>
+  let supabaseClient = null;
+  let library = [];
+  let isUploading = false;
 
-  </main>
+  const $ = id => document.getElementById(id);
 
-  <script>
-    let supabaseClient = null;
+  function showToast(message, type="info") {
+    const el = document.createElement("div");
+    const cls = type === "error" ? "border-red-500/30 bg-red-950/80 text-red-200" :
+                type === "success" ? "border-emerald-500/30 bg-emerald-950/80 text-emerald-200" :
+                "border-blue-500/30 bg-slate-900/95 text-slate-200";
+    el.className = `toast glass rounded-xl border px-4 py-3 text-sm ${cls}`;
+    el.textContent = message;
+    $("toast-container").appendChild(el);
+    setTimeout(() => el.remove(), 4500);
+  }
 
-    window.onload = () => {
-      const savedUrl = localStorage.getItem('sb_url');
-      const savedKey = localStorage.getItem('sb_key');
+  function switchTab(tab) {
+    document.querySelectorAll(".tab").forEach(x => x.classList.add("hidden"));
+    $("tab-" + tab).classList.remove("hidden");
 
-      if (savedUrl && savedKey) {
-        document.getElementById('supabase-url').value = savedUrl;
-        document.getElementById('supabase-key').value = savedKey;
-        initSupabase(savedUrl, savedKey);
-      }
+    document.querySelectorAll(".nav-btn").forEach(btn => {
+      const active = btn.dataset.tab === tab;
+      btn.classList.toggle("nav-active", active);
+      btn.classList.toggle("text-slate-400", !active);
+    });
+
+    if (tab === "dashboard" || tab === "library") loadLibrary();
+  }
+
+  function toggleMobileMenu() {
+    $("mobile-menu").classList.toggle("hidden");
+  }
+
+  function setConnection(ok, text) {
+    $("status-dot").className = `w-2.5 h-2.5 rounded-full ${ok ? "bg-emerald-400" : "bg-red-400"}`;
+    $("status-text").textContent = text;
+    $("status-text").className = `text-xs font-semibold ${ok ? "text-emerald-300" : "text-red-300"}`;
+  }
+
+  function getConfig() {
+    return {
+      url: $("supabase-url").value.trim(),
+      key: $("supabase-key").value.trim(),
+      bucket: $("bucket-name").value.trim() || DEFAULT_BUCKET
     };
+  }
 
-    function switchTab(tab) {
-      document.getElementById('tab-upload').classList.toggle('hidden', tab !== 'upload');
-      document.getElementById('tab-config').classList.toggle('hidden', tab !== 'config');
-      
-      const btnUpload = document.getElementById('btn-tab-upload');
-      const btnConfig = document.getElementById('btn-tab-config');
+  async function initSupabase() {
+    const cfg = getConfig();
+    if (!cfg.url || !cfg.key) return false;
 
-      if (tab === 'upload') {
-        btnUpload.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition text-blue-400 bg-blue-500/10 border border-blue-500/20";
-        btnConfig.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition text-gray-400 hover:text-gray-200 hover:bg-gray-800/50";
-      } else {
-        btnConfig.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition text-blue-400 bg-blue-500/10 border border-blue-500/20";
-        btnUpload.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition text-gray-400 hover:text-gray-200 hover:bg-gray-800/50";
-      }
+    try {
+      supabaseClient = window.supabase.createClient(cfg.url, cfg.key);
+      const { data, error } = await supabaseClient.storage.from(cfg.bucket).list("", { limit: 1 });
+      if (error) throw error;
+      setConnection(true, "Servidor ligado");
+      $("connection-result").textContent = "Ligação ao Supabase confirmada.";
+      $("connection-result").className = "text-sm text-emerald-400";
+      await loadLibrary();
+      return true;
+    } catch (err) {
+      supabaseClient = null;
+      setConnection(false, "Erro na ligação");
+      $("connection-result").textContent = "Não foi possível aceder ao bucket: " + (err.message || err);
+      $("connection-result").className = "text-sm text-red-400";
+      return false;
+    }
+  }
+
+  async function saveConfig() {
+    const cfg = getConfig();
+    if (!cfg.url || !cfg.key) {
+      showToast("Preenche o Project URL e a Publishable/Anon key.", "error");
+      return;
+    }
+    localStorage.setItem("ev_url", cfg.url);
+    localStorage.setItem("ev_key", cfg.key);
+    localStorage.setItem("ev_bucket", cfg.bucket);
+    await initSupabase();
+  }
+
+  function formatBytes(bytes) {
+    if (!Number.isFinite(bytes) || bytes <= 0) return "—";
+    const units = ["B","KB","MB","GB","TB"];
+    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+    return `${(bytes / Math.pow(1024, i)).toFixed(i ? 1 : 0)} ${units[i]}`;
+  }
+
+  function formatDate(date) {
+    if (!date) return "—";
+    return new Intl.DateTimeFormat("pt-PT", {
+      dateStyle: "short", timeStyle: "short"
+    }).format(new Date(date));
+  }
+
+  function safeName(name) {
+    return name.replace(/[^\p{L}\p{N}._()\- ]/gu, "_").replace(/\s+/g, "_");
+  }
+
+  async function sha256(file) {
+    const buffer = await file.arrayBuffer();
+    const digest = await crypto.subtle.digest("SHA-256", buffer);
+    return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2,"0")).join("");
+  }
+
+  function fileCard(file, index) {
+    const id = `queue-${index}`;
+    const div = document.createElement("div");
+    div.id = id;
+    div.className = "glass rounded-2xl p-4";
+    div.innerHTML = `
+      <div class="flex items-start gap-4">
+        <div class="w-11 h-11 shrink-0 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center">▶</div>
+        <div class="min-w-0 flex-1">
+          <div class="flex justify-between gap-3">
+            <div class="font-semibold truncate">${escapeHtml(file.name)}</div>
+            <div class="text-xs text-slate-500 shrink-0">${formatBytes(file.size)}</div>
+          </div>
+          <div class="text-xs text-slate-500 mt-1" id="${id}-status">Preparado</div>
+          <div class="mt-3 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+            <div id="${id}-bar" class="h-full bg-blue-500 w-0 transition-all"></div>
+          </div>
+          <div id="${id}-hash" class="mono text-[10px] text-slate-600 mt-2 truncate"></div>
+        </div>
+      </div>`;
+    $("upload-queue").appendChild(div);
+    return id;
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, c => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+    }[c]));
+  }
+
+  async function uploadFile(file, index) {
+    const cfg = getConfig();
+    if (!supabaseClient) throw new Error("O Supabase não está ligado.");
+    const id = fileCard(file, index);
+    const status = $(`${id}-status`);
+    const bar = $(`${id}-bar`);
+    const hashEl = $(`${id}-hash`);
+
+    status.textContent = "A calcular SHA-256…";
+    bar.style.width = "25%";
+
+    const hash = await sha256(file);
+    hashEl.textContent = "SHA-256: " + hash;
+
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const path = `evidence/${stamp}_${crypto.randomUUID()}_${safeName(file.name)}`;
+
+    status.textContent = "A enviar para o Storage…";
+    bar.style.width = "55%";
+
+    const { error } = await supabaseClient.storage.from(cfg.bucket).upload(path, file, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: file.type || "application/octet-stream"
+    });
+
+    if (error) throw error;
+
+    bar.style.width = "100%";
+    status.innerHTML = `<span class="text-emerald-400 font-semibold">Preservado com sucesso</span> · ${formatDate(new Date())}`;
+    showToast(`${file.name} foi guardado.`, "success");
+  }
+
+  async function processFiles(files) {
+    if (!files.length) return;
+    if (!supabaseClient) {
+      showToast("Liga primeiro o servidor em “Ligação”.", "error");
+      switchTab("settings");
+      return;
     }
 
-    function saveConfig() {
-      const url = document.getElementById('supabase-url').value.trim();
-      const key = document.getElementById('supabase-key').value.trim();
-
-      if (!url || !key) {
-        alert('Por favor preencha o URL e a API Key do Supabase.');
-        return;
-      }
-
-      localStorage.setItem('sb_url', url);
-      localStorage.setItem('sb_key', key);
-      initSupabase(url, key);
-      alert('Configuração guardada com sucesso!');
-      switchTab('upload');
-    }
-
-    function initSupabase(url, key) {
+    isUploading = true;
+    for (let i = 0; i < files.length; i++) {
       try {
-        supabaseClient = window.supabase.createClient(url, key);
-        document.getElementById('status-dot').className = "w-2.5 h-2.5 rounded-full bg-emerald-500";
-        document.getElementById('status-text').innerText = "Servidor Ligado";
-        document.getElementById('status-text').className = "text-xs font-medium text-emerald-400";
+        await uploadFile(files[i], i);
       } catch (err) {
-        document.getElementById('status-dot').className = "w-2.5 h-2.5 rounded-full bg-red-500";
-        document.getElementById('status-text').innerText = "Erro na Ligação";
-        document.getElementById('status-text').className = "text-xs font-medium text-red-400";
+        const node = $(`queue-${i}-status`);
+        if (node) {
+          node.textContent = "Erro: " + (err.message || err);
+          node.className = "text-xs text-red-400 mt-1";
+        }
+        showToast(`Erro ao guardar ${files[i].name}: ${err.message || err}`, "error");
       }
     }
+    isUploading = false;
+    await loadLibrary();
+  }
 
-    async function handleFileSelect(e) {
-      const file = e.target.files[0];
-      if (!file) return;
+  function setupDropzone() {
+    const zone = $("drop-zone");
+    const input = $("file-input");
 
-      if (!supabaseClient) {
-        alert('Ligue o servidor em "Configurar Servidor" antes de fazer upload.');
-        switchTab('config');
-        return;
-      }
+    zone.addEventListener("click", e => {
+      if (e.target !== input) input.click();
+    });
+    input.addEventListener("change", e => processFiles([...e.target.files]));
 
-      const progressCard = document.getElementById('progress-card');
-      const progressBar = document.getElementById('progress-bar');
-      const fileNameEl = document.getElementById('file-name');
-      const uploadStatus = document.getElementById('upload-status');
-      const fileHashEl = document.getElementById('file-hash');
+    ["dragenter","dragover"].forEach(evt => zone.addEventListener(evt, e => {
+      e.preventDefault(); e.stopPropagation(); zone.classList.add("drop-active");
+    }));
+    ["dragleave","drop"].forEach(evt => zone.addEventListener(evt, e => {
+      e.preventDefault(); e.stopPropagation(); zone.classList.remove("drop-active");
+    }));
+    zone.addEventListener("drop", e => processFiles([...e.dataTransfer.files]));
+  }
 
-      progressCard.classList.remove('hidden');
-      fileNameEl.innerText = file.name;
-      uploadStatus.innerText = "A calcular Hash...";
-      progressBar.style.width = "20%";
+  async function loadLibrary() {
+    if (!supabaseClient) return;
+    const cfg = getConfig();
+    const { data, error } = await supabaseClient.storage.from(cfg.bucket).list("evidence", {
+      limit: 100,
+      sortBy: { column: "created_at", order: "desc" }
+    });
 
-      // Compute Hash SHA-256
-      const arrayBuffer = await file.arrayBuffer();
-      const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      fileHashEl.innerText = hashHex;
-
-      uploadStatus.innerText = "A enviar para o Supabase...";
-      progressBar.style.width = "60%";
-
-      const filePath = `uploads/${Date.now()}_${file.name}`;
-
-      const { data, error } = await supabaseClient
-        .storage
-        .from('videos')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: true
-        });
-
-      if (error) {
-        console.error("Supabase Upload Error:", error);
-        uploadStatus.innerText = "Erro no Upload";
-        uploadStatus.className = "text-xs text-red-400 font-semibold uppercase";
-        alert('Erro ao guardar no servidor: ' + error.message);
-      } else {
-        progressBar.style.width = "100%";
-        uploadStatus.innerText = "Concluído com Sucesso!";
-        uploadStatus.className = "text-xs text-emerald-400 font-semibold uppercase";
-      }
+    if (error) {
+      setConnection(false, "Storage sem acesso");
+      $("library-list").innerHTML = `<div class="p-10 text-center text-red-400 text-sm">${escapeHtml(error.message)}</div>`;
+      return;
     }
-  </script>
+
+    library = (data || []).filter(x => x.name && !x.name.endsWith("/"));
+    $("stat-files").textContent = library.length;
+
+    // Supabase list() may not expose file size consistently. We therefore only
+    // sum sizes when metadata is present.
+    const total = library.reduce((sum, f) => sum + Number(f.metadata?.size || 0), 0);
+    $("stat-size").textContent = total ? formatBytes(total) : "—";
+
+    renderLibrary();
+    renderRecent();
+  }
+
+  function renderLibrary() {
+    const q = ($("search-input")?.value || "").toLowerCase().trim();
+    const items = library.filter(f => f.name.toLowerCase().includes(q));
+
+    if (!items.length) {
+      $("library-list").innerHTML = `<div class="p-12 text-center text-slate-500 text-sm">Nenhuma evidência encontrada.</div>`;
+      return;
+    }
+
+    $("library-list").innerHTML = items.map((f, i) => `
+      <div class="p-4 md:p-5 flex items-center gap-4 hover:bg-white/[.025] transition">
+        <div class="w-11 h-11 shrink-0 rounded-xl bg-slate-800 flex items-center justify-center text-blue-400">▶</div>
+        <div class="min-w-0 flex-1">
+          <div class="font-semibold truncate">${escapeHtml(f.name)}</div>
+          <div class="text-xs text-slate-500 mt-1">
+            ${formatDate(f.created_at)} · ${formatBytes(Number(f.metadata?.size || 0))}
+          </div>
+        </div>
+        <button onclick="downloadEvidence('${escapeAttr(f.name)}')" class="glass-soft rounded-xl px-3 py-2 text-sm text-blue-300 hover:text-blue-200">Descarregar</button>
+      </div>`).join("");
+  }
+
+  function renderRecent() {
+    const items = library.slice(0,5);
+    if (!items.length) {
+      $("recent-list").innerHTML = `<div class="py-8 text-center text-slate-500 text-sm">Ainda não existem ficheiros.</div>`;
+      return;
+    }
+    $("recent-list").innerHTML = items.map(f => `
+      <div class="glass-soft rounded-xl px-4 py-3 flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center text-blue-400">▶</div>
+        <div class="min-w-0 flex-1">
+          <div class="text-sm font-semibold truncate">${escapeHtml(f.name)}</div>
+          <div class="text-[11px] text-slate-500">${formatDate(f.created_at)}</div>
+        </div>
+        <button onclick="downloadEvidence('${escapeAttr(f.name)}')" class="text-xs text-blue-400">Abrir</button>
+      </div>`).join("");
+  }
+
+  function escapeAttr(str) {
+    return String(str).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  }
+
+  async function downloadEvidence(name) {
+    const cfg = getConfig();
+    try {
+      const path = `evidence/${name}`;
+      const { data, error } = await supabaseClient.storage.from(cfg.bucket).createSignedUrl(path, 600);
+      if (error) throw error;
+      window.open(data.signedUrl, "_blank", "noopener");
+    } catch (err) {
+      showToast("Não foi possível gerar o acesso ao ficheiro: " + err.message, "error");
+    }
+  }
+
+  window.addEventListener("load", async () => {
+    $("supabase-url").value = localStorage.getItem("ev_url") || DEFAULT_URL;
+    $("supabase-key").value = localStorage.getItem("ev_key") || DEFAULT_KEY;
+    $("bucket-name").value = localStorage.getItem("ev_bucket") || DEFAULT_BUCKET;
+    setupDropzone();
+    await initSupabase();
+  });
+</script>
 </body>
 </html>
