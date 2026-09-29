@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Evidence Vault — Cloud Storage</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <style>
+    body { background-color: #0b0f19; color: #f3f4f6; font-family: system-ui, -apple-system, sans-serif; }
+    .glass-card { background: rgba(17, 24, 39, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
+  </style>
+</head>
+<body class="flex h-screen overflow-hidden">
+
+  <!-- Sidebar -->
+  <aside class="w-64 glass-card border-r border-gray-800 flex flex-col justify-between p-4 z-10">
+    <div>
+      <div class="flex items-center gap-3 px-2 py-4 mb-6">
+        <i class="fa-solid fa-shield-halved text-blue-500 text-2xl"></i>
+        <div>
+          <h1 class="font-bold text-lg tracking-wide">Evidence Vault</h1>
+          <p class="text-xs text-gray-500 uppercase tracking-widest">Preserve. Verify.</p>
+        </div>
+      </div>
+
+      <nav class="space-y-1">
+        <button id="btn-tab-upload" onclick="switchTab('upload')" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition text-blue-400 bg-blue-500/10 border border-blue-500/20">
+          <i class="fa-solid fa-cloud-arrow-up"></i> Carregar para a Nuvem
+        </button>
+        <button id="btn-tab-config" onclick="switchTab('config')" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition text-gray-400 hover:text-gray-200 hover:bg-gray-800/50">
+          <i class="fa-solid fa-gear"></i> Configurar Servidor
+        </button>
+      </nav>
+    </div>
+
+    <!-- Indicator -->
+    <div class="p-3 rounded-xl bg-gray-900/50 border border-gray-800 flex items-center gap-3">
+      <span id="status-dot" class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
+      <span id="status-text" class="text-xs font-medium text-gray-400">Desligado</span>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 overflow-y-auto p-8 relative">
+    
+    <!-- Tab 1: Upload -->
+    <section id="tab-upload" class="max-w-3xl mx-auto space-y-6">
+      <header>
+        <h2 class="text-2xl font-bold">Enviar Vídeo / Ficheiro</h2>
+        <p class="text-sm text-gray-400">O ficheiro será guardado de forma segura no Supabase Storage.</p>
+      </header>
+
+      <div class="glass-card p-8 rounded-2xl border-dashed border-2 border-gray-700 hover:border-blue-500 transition text-center cursor-pointer relative" id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <input type="file" id="file-input" class="hidden" onchange="handleFileSelect(event)">
+        <i class="fa-solid fa-cloud-arrow-up text-4xl text-blue-400 mb-3"></i>
+        <h3 class="font-semibold text-gray-200">Clique ou arraste o ficheiro para aqui</h3>
+        <p class="text-xs text-gray-500 mt-1">Suporta vídeos, imagens e ficheiros até 50MB no plano gratuito.</p>
+      </div>
+
+      <!-- Progress Section -->
+      <div id="progress-card" class="glass-card p-5 rounded-xl space-y-3 hidden">
+        <div class="flex justify-between items-center text-sm">
+          <span id="file-name" class="font-medium text-gray-300 truncate max-w-xs">ficheiro.mp4</span>
+          <span id="upload-status" class="text-xs text-blue-400 font-semibold uppercase">A enviar...</span>
+        </div>
+        <div class="w-full bg-gray-800 h-2 rounded-full overflow-hidden">
+          <div id="progress-bar" class="bg-blue-500 h-full w-0 transition-all duration-300"></div>
+        </div>
+        <div id="hash-info" class="text-[10px] font-mono text-gray-500 truncate">
+          SHA-256: <span id="file-hash">a calcular...</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 2: Config -->
+    <section id="tab-config" class="max-w-2xl mx-auto space-y-6 hidden">
+      <header>
+        <h2 class="text-2xl font-bold">Ligação ao Supabase</h2>
+        <p class="text-sm text-gray-400">Insira os seus dados de acesso do Supabase para ligar o servidor.</p>
+      </header>
+
+      <div class="glass-card p-6 rounded-2xl space-y-4 border border-gray-800">
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Project URL do Supabase</label>
+          <input type="text" id="supabase-url" placeholder="https://xxxxxxxxxxxx.supabase.co" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 transition">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Anon / Public API Key</label>
+          <input type="password" id="supabase-key" placeholder="eyJhbGciOiJIUzI1NiIsIn..." class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 transition">
+        </div>
+        <button onclick="saveConfig()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-3 rounded-xl transition shadow-lg shadow-blue-500/20">
+          Guardar e Ligar Servidor
+        </button>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    let supabaseClient = null;
+
+    window.onload = () => {
+      const savedUrl = localStorage.getItem('sb_url');
+      const savedKey = localStorage.getItem('sb_key');
+
+      if (savedUrl && savedKey) {
+        document.getElementById('supabase-url').value = savedUrl;
+        document.getElementById('supabase-key').value = savedKey;
+        initSupabase(savedUrl, savedKey);
+      }
+    };
+
+    function switchTab(tab) {
+      document.getElementById('tab-upload').classList.toggle('hidden', tab !== 'upload');
+      document.getElementById('tab-config').classList.toggle('hidden', tab !== 'config');
+      
+      const btnUpload = document.getElementById('btn-tab-upload');
+      const btnConfig = document.getElementById('btn-tab-config');
+
+      if (tab === 'upload') {
+        btnUpload.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition text-blue-400 bg-blue-500/10 border border-blue-500/20";
+        btnConfig.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition text-gray-400 hover:text-gray-200 hover:bg-gray-800/50";
+      } else {
+        btnConfig.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition text-blue-400 bg-blue-500/10 border border-blue-500/20";
+        btnUpload.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition text-gray-400 hover:text-gray-200 hover:bg-gray-800/50";
+      }
+    }
+
+    function saveConfig() {
+      const url = document.getElementById('supabase-url').value.trim();
+      const key = document.getElementById('supabase-key').value.trim();
+
+      if (!url || !key) {
+        alert('Por favor preencha o URL e a API Key do Supabase.');
+        return;
+      }
+
+      localStorage.setItem('sb_url', url);
+      localStorage.setItem('sb_key', key);
+      initSupabase(url, key);
+      alert('Configuração guardada com sucesso!');
+      switchTab('upload');
+    }
+
+    function initSupabase(url, key) {
+      try {
+        supabaseClient = window.supabase.createClient(url, key);
+        document.getElementById('status-dot').className = "w-2.5 h-2.5 rounded-full bg-emerald-500";
+        document.getElementById('status-text').innerText = "Servidor Ligado";
+        document.getElementById('status-text').className = "text-xs font-medium text-emerald-400";
+      } catch (err) {
+        document.getElementById('status-dot').className = "w-2.5 h-2.5 rounded-full bg-red-500";
+        document.getElementById('status-text').innerText = "Erro na Ligação";
+        document.getElementById('status-text').className = "text-xs font-medium text-red-400";
+      }
+    }
+
+    async function handleFileSelect(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      if (!supabaseClient) {
+        alert('Ligue o servidor em "Configurar Servidor" antes de fazer upload.');
+        switchTab('config');
+        return;
+      }
+
+      const progressCard = document.getElementById('progress-card');
+      const progressBar = document.getElementById('progress-bar');
+      const fileNameEl = document.getElementById('file-name');
+      const uploadStatus = document.getElementById('upload-status');
+      const fileHashEl = document.getElementById('file-hash');
+
+      progressCard.classList.remove('hidden');
+      fileNameEl.innerText = file.name;
+      uploadStatus.innerText = "A calcular Hash...";
+      progressBar.style.width = "20%";
+
+      // Compute Hash SHA-256
+      const arrayBuffer = await file.arrayBuffer();
+      const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      fileHashEl.innerText = hashHex;
+
+      uploadStatus.innerText = "A enviar para o Supabase...";
+      progressBar.style.width = "60%";
+
+      const filePath = `uploads/${Date.now()}_${file.name}`;
+
+      const { data, error } = await supabaseClient
+        .storage
+        .from('videos')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true
+        });
+
+      if (error) {
+        console.error("Supabase Upload Error:", error);
+        uploadStatus.innerText = "Erro no Upload";
+        uploadStatus.className = "text-xs text-red-400 font-semibold uppercase";
+        alert('Erro ao guardar no servidor: ' + error.message);
+      } else {
+        progressBar.style.width = "100%";
+        uploadStatus.innerText = "Concluído com Sucesso!";
+        uploadStatus.className = "text-xs text-emerald-400 font-semibold uppercase";
+      }
+    }
+  </script>
+</body>
+</html>
